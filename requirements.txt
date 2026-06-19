@@ -1,0 +1,29 @@
+# Streaming
+apache-flink==1.20.1
+confluent-kafka==2.6.1
+
+# ML / Inference
+pyspark==3.5.4
+onnxruntime==1.20.1
+ortools==9.11.4210
+langchain==0.3.7
+langchain-openai==0.2.3
+
+# MCP
+mcp==1.9.3
+
+# Data
+pandas==2.2.3
+pyarrow==18.1.0
+
+# Metrics
+prometheus-client==0.21.1
+
+# Config
+python-dotenv==1.0.1
+pydantic-settings==2.4.0
+
+# Dev / Lint / Test
+ruff==0.8.6
+pytest==7.4.3
+pytest-timeout==2.2.0

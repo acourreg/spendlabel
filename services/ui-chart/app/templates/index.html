@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>spendlabel benchmark</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --bg-secondary: #f5f4f0;
+      --text: #1a1a18;
+      --text-muted: #6b6a66;
+      --border: rgba(0, 0, 0, 0.12);
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --bar-track: rgba(0, 0, 0, 0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1a1a18;
+        --bg-secondary: #232220;
+        --text: #f5f4f0;
+        --text-muted: #9a9892;
+        --border: rgba(255, 255, 255, 0.14);
+        --bar-track: rgba(255, 255, 255, 0.08);
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 1160px; margin: 0 auto; padding: 40px 28px 80px; }
+
+    header { margin-bottom: 32px; }
+    header h1 { font-size: 28px; font-weight: 650; margin: 0 0 4px; letter-spacing: -0.01em; }
+    header p { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 36px;
+    }
+    @media (max-width: 760px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px 18px 16px;
+    }
+    .card .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .card .value { font-size: 26px; font-weight: 650; margin-top: 8px; letter-spacing: -0.01em; }
+    .card .sub { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 760px) { .panels { grid-template-columns: 1fr; } }
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px 22px;
+    }
+    .panel.full { margin-bottom: 28px; }
+    .panel h2 { font-size: 14px; font-weight: 600; margin: 0 0 16px; }
+
+    .bar-row { display: grid; grid-template-columns: 132px 1fr 84px; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .bar-row .name { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-track { background: var(--bar-track); border-radius: 999px; height: 10px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+    .bar-fill.accuracy { background: #2f6f4f; }
+    .bar-fill.latency  { background: #3a6ea5; }
+    .bar-fill.exec     { background: #8a6fb0; }
+    .bar-row .val { font-size: 13px; color: var(--text-muted); text-align: right; font-variant-numeric: tabular-nums; }
+
+    .sb-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+    select {
+      font: inherit; font-size: 13px; color: var(--text);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 7px 10px;
+    }
+    #sunburst-wrap { display: flex; justify-content: center; min-height: 480px; align-items: center; }
+    #sunburst { display: block; }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px; }
+    .legend .item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
+    .legend .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+    .legend .item b { color: var(--text); font-weight: 550; }
+
+    .empty { color: var(--text-muted); font-size: 14px; padding: 24px 0; text-align: center; }
+
+    .tooltip {
+      position: fixed; pointer-events: none; z-index: 10;
+      background: var(--bg); color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 8px 11px; font-size: 12px; line-height: 1.5;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+      opacity: 0; transition: opacity 0.12s ease; max-width: 220px;
+    }
+    .tooltip .t-title { font-weight: 600; margin-bottom: 2px; }
+    .tooltip .t-row { color: var(--text-muted); }
+    .tooltip .t-row span { color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>spendlabel benchmark</h1>
+      <p>CPV classification · 7 AI paradigms · UK Contracts Finder</p>
+    </header>
+
+    <section class="cards" id="cards"></section>
+
+    <section class="panels">
+      <div class="panel">
+        <h2>Accuracy by paradigm</h2>
+        <div id="accuracy-bars"></div>
+      </div>
+      <div class="panel">
+        <h2>Latency by paradigm (ms)</h2>
+        <div id="latency-bars"></div>
+      </div>
+    </section>
+
+    <div class="panel full">
+      <h2>Total execution time</h2>
+      <div id="exec-bars"></div>
+    </div>
+
+    <div class="panel full">
+      <div class="sb-head">
+        <h2 style="margin:0;">CPV spend sunburst</h2>
+        <label>Paradigm
+          <select id="paradigm-select"></select>
+        </label>
+      </div>
+      <div id="sunburst-wrap"><svg id="sunburst" width="480" height="480"></svg></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <script>
+    // ---- fixed palette per CPV category ----
+    const CPV_COLORS = {
+      "45": "#3f9268", // Construction  — green
+      "48": "#d99a2b", // Software      — amber
+      "60": "#5aa6a6", // Transport     — teal
+      "71": "#c1683c", // Engineering   — orange
+      "72": "#3a6ea5", // IT Services   — blue
+      "73": "#7e9a3c", // Research      — olive
+      "75": "#6b6a90", // Public admin  — slate
+      "79": "#8a5fb0", // Business svc  — violet
+      "80": "#2f8fb0", // Education     — cyan
+      "85": "#c0453f", // Health        — red
+      "90": "#4f9a52", // Environmental — leaf
+      "98": "#9a8c7a", // Other         — taupe
+    };
+    const DEFAULT_COLOR = "#888880";
+    const baseColor = (code) => CPV_COLORS[code] || DEFAULT_COLOR;
+
+    // ---- formatters ----
+    const fmtSpend = (v) => {
+      if (v == null) return "£0";
+      if (Math.abs(v) >= 1e6) return "£" + (v / 1e6).toFixed(1) + "M";
+      if (Math.abs(v) >= 1e3) return "£" + (v / 1e3).toFixed(0) + "K";
+      return "£" + Math.round(v);
+    };
+    const fmtMs = (v) => (v == null ? "—" : v.toFixed(1) + " ms");
+    const fmtPct = (v) => (v == null ? "—" : (v * 100).toFixed(1) + "%");
+    const fmtInt = (v) => (v == null ? "0" : Math.round(v).toLocaleString("en-GB"));
+    const fmtSeconds = (s) => {
+      if (s == null) return "—";
+      if (s < 60) return s.toFixed(1) + "s";
+      const m = Math.floor(s / 60);
+      return m + "m " + Math.round(s % 60) + "s";
+    };
+
+    // ---- state ----
+    let metricsData = [];
+
+    async function init() {
+      try {
+        const res = await fetch("/api/metrics");
+        metricsData = await res.json();
+      } catch (e) {
+        metricsData = [];
+      }
+      renderCards(metricsData);
+      renderBars(metricsData);
+      populateSelect(metricsData);
+      if (metricsData.length) {
+        loadSunburst(document.getElementById("paradigm-select").value);
+      } else {
+        showSunburstEmpty();
+      }
+    }
+
+    function renderCards(data) {
+      const el = document.getElementById("cards");
+      if (!data.length) {
+        el.innerHTML = card("Records classified", "no data yet", "")
+          + card("Best accuracy", "no data yet", "")
+          + card("Fastest paradigm", "no data yet", "")
+          + card("Total bench runtime", "no data yet", "");
+        return;
+      }
+      const totalRecords = d3.sum(data, (d) => d.total_records || 0);
+      const best = data.reduce((a, b) => ((b.accuracy ?? -1) > (a.accuracy ?? -1) ? b : a));
+      const withLat = data.filter((d) => d.avg_latency_ms != null);
+      const fastest = withLat.length
+        ? withLat.reduce((a, b) => (b.avg_latency_ms < a.avg_latency_ms ? b : a))
+        : null;
+      const totalRuntime = d3.sum(data, (d) => d.total_exec_seconds || 0);
+
+      el.innerHTML =
+        card("Records classified", fmtInt(totalRecords), "across all paradigms")
+        + card("Best accuracy", fmtPct(best.accuracy), best.paradigm)
+        + card("Fastest paradigm", fastest ? fastest.paradigm : "—", fastest ? fmtMs(fastest.avg_latency_ms) : "")
+        + card("Total bench runtime", fmtSeconds(totalRuntime), "sum of all runs");
+    }
+    function card(label, value, sub) {
+      return `<div class="card"><div class="label">${label}</div>`
+        + `<div class="value">${value}</div>`
+        + `<div class="sub">${sub || "&nbsp;"}</div></div>`;
+    }
+
+    function renderBars(data) {
+      const acc = document.getElementById("accuracy-bars");
+      const lat = document.getElementById("latency-bars");
+      const exe = document.getElementById("exec-bars");
+      if (!data.length) {
+        acc.innerHTML = lat.innerHTML = exe.innerHTML = `<div class="empty">no data yet</div>`;
+        return;
+      }
+      // accuracy desc
+      const byAcc = [...data].sort((a, b) => (b.accuracy ?? -1) - (a.accuracy ?? -1));
+      acc.innerHTML = byAcc.map((d) =>
+        barRow(d.paradigm, (d.accuracy ?? 0) * 100, fmtPct(d.accuracy), "accuracy")
+      ).join("");
+
+      // latency asc (fastest first)
+      const withLat = data.filter((d) => d.avg_latency_ms != null);
+      const byLat = [...withLat].sort((a, b) => a.avg_latency_ms - b.avg_latency_ms);
+      const maxLat = d3.max(byLat, (d) => d.avg_latency_ms) || 1;
+      lat.innerHTML = byLat.length
+        ? byLat.map((d) =>
+            barRow(d.paradigm, (d.avg_latency_ms / maxLat) * 100, fmtMs(d.avg_latency_ms), "latency")
+          ).join("")
+        : `<div class="empty">no data yet</div>`;
+
+      // exec time asc
+      const withExe = data.filter((d) => d.total_exec_seconds != null);
+      const byExe = [...withExe].sort((a, b) => a.total_exec_seconds - b.total_exec_seconds);
+      const maxExe = d3.max(byExe, (d) => d.total_exec_seconds) || 1;
+      exe.innerHTML = byExe.length
+        ? byExe.map((d) =>
+            barRow(d.paradigm, (d.total_exec_seconds / maxExe) * 100, fmtSeconds(d.total_exec_seconds), "exec")
+          ).join("")
+        : `<div class="empty">no data yet</div>`;
+    }
+    function barRow(name, pct, valText, kind) {
+      const w = Math.max(0, Math.min(100, pct));
+      return `<div class="bar-row"><div class="name">${name}</div>`
+        + `<div class="bar-track"><div class="bar-fill ${kind}" style="width:${w}%"></div></div>`
+        + `<div class="val">${valText}</div></div>`;
+    }
+
+    function populateSelect(data) {
+      const sel = document.getElementById("paradigm-select");
+      sel.innerHTML = "";
+      if (!data.length) {
+        const opt = document.createElement("option");
+        opt.textContent = "no runs";
+        sel.appendChild(opt);
+        sel.disabled = true;
+        return;
+      }
+      sel.disabled = false;
+      data.forEach((d) => {
+        const opt = document.createElement("option");
+        opt.value = d.paradigm;
+        opt.textContent = d.paradigm;
+        sel.appendChild(opt);
+      });
+      sel.onchange = () => loadSunburst(sel.value);
+    }
+
+    // ---- D3 sunburst (coxcomb: equal angle per category, radius ∝ spend) ----
+    const svgEl = d3.select("#sunburst");
+    const W = 480, H = 480, INNER = 46;
+    const MAXR = Math.min(W, H) / 2 - 16;
+    const g = svgEl.append("g").attr("transform", `translate(${W / 2},${H / 2})`);
+    const tooltip = document.getElementById("tooltip");
+
+    async function loadSunburst(paradigm) {
+      let data = { paradigm, slices: [] };
+      try {
+        const res = await fetch("/api/sunburst?paradigm=" + encodeURIComponent(paradigm));
+        data = await res.json();
+      } catch (e) { /* keep empty */ }
+      drawSunburst(data);
+    }
+
+    function showSunburstEmpty() {
+      g.selectAll("*").remove();
+      g.append("text").attr("text-anchor", "middle").attr("dy", "0.35em")
+        .attr("fill", "var(--text-muted)").style("font-size", "14px").text("no data yet");
+      document.getElementById("legend").innerHTML = "";
+    }
+
+    function drawSunburst(data) {
+      const slices = (data.slices || []).filter((s) => s.spend > 0);
+      g.selectAll("text").remove();
+      if (!slices.length) { showSunburstEmpty(); return; }
+
+      const n = slices.length;
+      const angle = (2 * Math.PI) / n;
+      const maxSpend = d3.max(slices, (d) => d.spend) || 1;
+      const rScale = d3.scaleLinear().domain([0, maxSpend]).range([INNER, MAXR]);
+
+      slices.forEach((d, i) => {
+        d._a0 = i * angle;
+        d._a1 = (i + 1) * angle;
+        d._ratio = d.spend > 0 ? Math.min(1, d.off_contract / d.spend) : 0;
+        d._fill = d3.color(baseColor(d.cpv_code)).darker(d._ratio * 1.8).formatHex();
+      });
+
+      const arcGen = d3.arc()
+        .innerRadius(INNER)
+        .startAngle((d) => d._a0)
+        .endAngle((d) => d._a1 - 0.012)
+        .cornerRadius(2)
+        .padAngle(0.004);
+
+      const sel = g.selectAll("path.slice").data(slices, (d) => d.cpv_code);
+
+      sel.exit()
+        .transition().duration(300).ease(d3.easeCubicOut)
+        .attrTween("d", function (d) {
+          const start = this._curR || INNER;
+          const i = d3.interpolate(start, INNER);
+          return (t) => arcGen.outerRadius(i(t))(d);
+        })
+        .remove();
+
+      const enter = sel.enter().append("path")
+        .attr("class", "slice")
+        .each(function () { this._curR = INNER; })
+        .on("mousemove", onMove)
+        .on("mouseleave", onLeave);
+
+      enter.merge(sel)
+        .attr("fill", (d) => d._fill)
+        .attr("stroke", "var(--bg)")
+        .attr("stroke-width", 1)
+        .on("mousemove", onMove)
+        .on("mouseleave", onLeave)
+        .transition().duration(300).ease(d3.easeCubicOut)
+        .attrTween("d", function (d) {
+          const start = this._curR || INNER;
+          const end = rScale(d.spend);
+          const i = d3.interpolate(start, end);
+          return (t) => { this._curR = i(t); return arcGen.outerRadius(this._curR)(d); };
+        });
+
+      renderLegend(slices);
+    }
+
+    function onMove(event, d) {
+      const acc = d.spend > 0 ? 1 - d.off_contract / d.spend : 0;
+      tooltip.innerHTML =
+        `<div class="t-title">${d.label} <span style="color:var(--text-muted)">(${d.cpv_code})</span></div>`
+        + `<div class="t-row">spend <span>${fmtSpend(d.spend)}</span></div>`
+        + `<div class="t-row">off-contract <span>${fmtSpend(d.off_contract)}</span></div>`
+        + `<div class="t-row">accuracy <span>${fmtPct(acc)}</span></div>`;
+      tooltip.style.opacity = 1;
+      tooltip.style.left = (event.clientX + 14) + "px";
+      tooltip.style.top = (event.clientY + 14) + "px";
+    }
+    function onLeave() { tooltip.style.opacity = 0; }
+
+    function renderLegend(slices) {
+      const wrap = document.getElementById("legend");
+      const sorted = [...slices].sort((a, b) => b.spend - a.spend);
+      wrap.innerHTML = sorted.map((d) =>
+        `<div class="item"><span class="swatch" style="background:${baseColor(d.cpv_code)}"></span>`
+        + `<span>${d.label} · <b>${fmtSpend(d.spend)}</b></span></div>`
+      ).join("");
+    }
+
+    init();
+  </script>
+</body>
+</html>

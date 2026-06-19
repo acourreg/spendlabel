@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: spendlabel
+      POSTGRES_USER: spendlabel
+      POSTGRES_PASSWORD: spendlabel
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spendlabel -d spendlabel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  consumers:
+    build: ./services/consumers/app
+    env_file:
+      - ./config/confluent.env.example
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: spendlabel
+      POSTGRES_USER: spendlabel
+      POSTGRES_PASSWORD: spendlabel
+    # Override the paradigm here, e.g.: command: ["python", "main.py", "--paradigm", "spark_ml"]
+    command: ["python", "main.py", "--paradigm", "hardcoded"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ui-chart:
+    build: ./services/ui-chart/app
+    environment:
+      PG_HOST: postgres
+      PG_PORT: "5432"
+      PG_DB: spendlabel
+      PG_USER: spendlabel
+      PG_PASSWORD: spendlabel
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
