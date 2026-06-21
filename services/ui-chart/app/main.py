@@ -36,6 +36,20 @@ CPV_LABELS = {
     "85": "Health",
     "90": "Environmental",
     "98": "Other community services",
+    # extended divisions so fewer sectors fall back to "CPV NN"
+    "09": "Petroleum",
+    "15": "Food & beverages",
+    "31": "Electrical equipment",
+    "33": "Medical equipment",
+    "38": "Lab instruments",
+    "44": "Construction materials",
+    "50": "Repair services",
+    "55": "Hotel & catering",
+    "63": "Transport support",
+    "64": "Postal & telecoms",
+    "66": "Financial services",
+    "77": "Agricultural",
+    "92": "Recreation",
 }
 
 
@@ -75,15 +89,19 @@ def api_metrics() -> JSONResponse:
 
 @app.get("/api/sunburst")
 def api_sunburst(paradigm: str = Query(...)) -> JSONResponse:
-    """Spend-by-CPV breakdown for one paradigm. Empty slices if no data."""
+    """Spend-by-CPV breakdown for one paradigm, grouped by what the paradigm
+    PREDICTED (not the ground truth — that's identical across paradigms, so the
+    pie must reflect each paradigm's own sector attribution). off_contract_spend
+    = spend the paradigm placed in this sector but misclassified. Empty if no data.
+    """
     sql = (
-        "SELECT ground_truth AS cpv_code, "
+        "SELECT predicted_cpv AS cpv_code, "
         "SUM(value_gbp) AS total_spend, "
         "SUM(CASE WHEN is_correct = false THEN value_gbp ELSE 0 END) AS off_contract_spend, "
         "COUNT(*) AS record_count "
         "FROM classifications "
         "WHERE paradigm = %s "
-        "GROUP BY ground_truth"
+        "GROUP BY predicted_cpv"
     )
     rows = _query(sql, (paradigm,))
     slices = []
@@ -100,6 +118,30 @@ def api_sunburst(paradigm: str = Query(...)) -> JSONResponse:
         )
     slices.sort(key=lambda s: s["spend"], reverse=True)
     return JSONResponse({"paradigm": paradigm, "slices": slices})
+
+
+@app.get("/api/progress")
+def api_progress() -> JSONResponse:
+    """Live per-paradigm run progress (processed/total). [] if not tracked yet."""
+    rows = _query(
+        "SELECT paradigm, processed, total, status, updated_at "
+        "FROM run_progress ORDER BY paradigm"
+    )
+    out = []
+    for paradigm, processed, total, status, updated_at in rows:
+        processed = int(processed or 0)
+        total = int(total or 0)
+        out.append(
+            {
+                "paradigm": paradigm,
+                "processed": processed,
+                "total": total,
+                "status": status,
+                "pct": (processed / total * 100.0) if total else 0.0,
+                "updated_at": updated_at.isoformat() if updated_at is not None else None,
+            }
+        )
+    return JSONResponse(out)
 
 
 def _query(sql: str, params: tuple = ()) -> list:

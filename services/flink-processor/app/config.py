@@ -17,7 +17,7 @@ class KafkaSettings(BaseSettings):
     topic_raw: str = "cpv-raw"
     topic_hardcoded: str = "cpv-hardcoded"
     topic_sparkml: str = "cpv-sparkml"
-    topic_onnx: str = "cpv-onnx"
+    topic_deeplearning: str = "cpv-deeplearning"
     topic_solver: str = "cpv-solver"
     topic_langchain: str = "cpv-langchain"
     topic_n8n: str = "cpv-n8n"
@@ -25,7 +25,7 @@ class KafkaSettings(BaseSettings):
 
     group_hardcoded: str = "spendlabel-hardcoded"
     group_sparkml: str = "spendlabel-sparkml"
-    group_onnx: str = "spendlabel-onnx"
+    group_deeplearning: str = "spendlabel-deeplearning"
     group_solver: str = "spendlabel-solver"
     group_langchain: str = "spendlabel-langchain"
     group_n8n: str = "spendlabel-n8n"

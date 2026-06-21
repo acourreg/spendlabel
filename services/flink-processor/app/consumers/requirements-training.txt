@@ -1,0 +1,11 @@
+# Offline training only — NOT shipped in the consumer runtime image.
+# Unpinned so pip resolves a set compatible with the host Python; the exported
+# ONNX artifacts are portable to the slim py3.11 inference container.
+sentence-transformers
+torch
+scikit-learn
+skl2onnx
+onnx
+onnxruntime
+numpy
+onnxscript

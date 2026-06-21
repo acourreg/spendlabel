@@ -66,6 +66,23 @@ def init_schema() -> None:
         cur.execute(ddl)
 
 
+def upsert_progress(paradigm: str, processed: int, total: int, status: str) -> None:
+    """Record live run progress (processed/total) for the ui-chart progress bars."""
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO run_progress (paradigm, processed, total, status, updated_at)
+            VALUES (%s, %s, %s, %s, NOW())
+            ON CONFLICT (paradigm) DO UPDATE SET
+                processed  = EXCLUDED.processed,
+                total      = EXCLUDED.total,
+                status     = EXCLUDED.status,
+                updated_at = NOW()
+            """,
+            (paradigm, processed, total, status),
+        )
+
+
 def insert_classification(
     *,
     ocid: str,
@@ -90,6 +107,31 @@ def insert_classification(
             """,
             (ocid, paradigm, predicted_cpv, ground_truth, is_correct,
              latency_ms, value_gbp, supplier_name),
+        )
+
+
+def insert_classifications_batch(rows: list[tuple]) -> None:
+    """Bulk-insert classification rows in one transaction.
+
+    Each row: (ocid, paradigm, predicted_cpv, ground_truth, is_correct,
+               latency_ms, value_gbp, supplier_name). Used by the embedding-based
+    ML consumers, which classify in batches.
+    """
+    if not rows:
+        return
+    from psycopg2.extras import execute_batch
+
+    with get_conn() as conn, conn.cursor() as cur:
+        execute_batch(
+            cur,
+            """
+            INSERT INTO classifications
+                (ocid, paradigm, predicted_cpv, ground_truth, is_correct,
+                 latency_ms, value_gbp, supplier_name)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            rows,
+            page_size=500,
         )
 
 

@@ -13,7 +13,7 @@ CSV files ──► Producer ──► Kafka (cpv-raw) ──► 7 PyFlink consu
                                                 │
                                                 ├── hardcoded     (keyword/regex rules)
                                                 ├── spark_ml      (TF-IDF + classifier)
-                                                ├── kstreams_onnx (neural net via ONNX)
+                                                ├── deeplearning_onnx (neural net via ONNX)
                                                 ├── solver        (OR-Tools constraints)
                                                 ├── langchain     (LLM agent, zero-shot)
                                                 ├── n8n           (webhook workflow)
@@ -45,14 +45,14 @@ spendlabel/
 ├── services/
 │   ├── producer/app/               ← CSV → Kafka publisher (local script, not dockerised)
 │   │   └── publish.py
-│   ├── consumers/app/              ← Service 1: PyFlink jobs → PostgreSQL (dockerised)
+│   ├── flink-processor/app/        ← Service 1: PyFlink jobs → PostgreSQL (dockerised)
 │   │   ├── main.py                 ← entrypoint: python main.py --paradigm <p>
 │   │   ├── config.py               ← Kafka + Flink settings (env-var overrides)
 │   │   ├── consumers/
 │   │   │   ├── base_job.py         ← Shared PyFlink job skeleton
 │   │   │   ├── hardcoded/          ← Rule-based classifier
 │   │   │   ├── spark_ml/           ← Spark ML classifier
-│   │   │   ├── kstreams_onnx/      ← ONNX runtime classifier
+│   │   │   ├── deeplearning_onnx/      ← ONNX runtime classifier
 │   │   │   ├── solver/             ← Constraint solver classifier
 │   │   │   ├── langchain/          ← LangChain LLM classifier
 │   │   │   ├── n8n/                ← n8n webhook classifier

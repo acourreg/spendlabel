@@ -17,7 +17,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from pyflink.datastream import StreamExecutionEnvironment
+# NB: pyflink is imported lazily inside run() — the current consumers image is
+# kept slim (no apache-flink), and concrete jobs (e.g. HardcodedJob) override
+# run() to delegate to their classifier, so importing this module must not
+# require pyflink.
 
 
 class BaseFlinkJob(ABC):
@@ -35,6 +38,8 @@ class BaseFlinkJob(ABC):
 
     def run(self) -> None:
         """Build and execute the Flink pipeline."""
+        from pyflink.datastream import StreamExecutionEnvironment
+
         env = StreamExecutionEnvironment.get_execution_environment()
 
         # TODO: enable checkpointing (mirror patternalarm 60 s interval)
