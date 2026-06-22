@@ -1,0 +1,22 @@
+# Consumer runtime. Lightweight on purpose so `docker compose up --build` stays
+# fast: the ML paradigms (spark_ml, kstreams_onnx) run inference on onnxruntime +
+# tokenizers only — no torch/pyspark/transformers (those live in src/training,
+# offline). The remaining stubs (solver, langchain, n8n, mcp) add their own deps
+# when wired.
+confluent-kafka==2.6.1
+psycopg2-binary==2.9.10
+pydantic-settings>=2.7,<3   # floats up so fastmcp/mcp can resolve; config.py is 2.x-stable
+python-dotenv>=1.1.0
+# ML inference. Two embedders: HuggingFace MiniLM via onnxruntime, and Model2Vec
+# (static vectors, no transformer). Heads (RF/MLP) run on onnxruntime. No torch.
+onnxruntime==1.19.2
+tokenizers==0.21.0
+numpy==1.26.4
+model2vec==0.8.2
+z3-solver==4.16.0.0
+# LLM paradigms (all Gemini via its OpenAI-compatible endpoint). `langchain` =
+# LangChain plain-prompt chain; `mcp` = agentic in-process MCP tools; `flow` =
+# n8n webhook (needs no Python LLM dep, urllib only).
+openai>=1.54,<2
+fastmcp>=2.10,<3
+langchain-openai>=0.2,<1

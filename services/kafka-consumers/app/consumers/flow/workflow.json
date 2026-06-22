@@ -1,0 +1,74 @@
+{
+  "id": "spendlabelflow",
+  "active": false,
+  "name": "spendlabel — CPV classify (flow paradigm, Gemini)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cpv-classify",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-in",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "cpv-classify"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.GEMINI_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'gemini-2.5-flash-lite',\n  temperature: 0,\n  max_tokens: 8,\n  messages: [\n    { role: 'system', content: 'You classify UK public-sector contracts into a single CPV division (2-digit spend sector). Reply with ONLY the 2-digit code, e.g. 45. Allowed divisions include 03,09,15,30,31,32,33,34,35,38,39,44,45,48,50,51,55,60,63,64,66,71,72,73,75,77,79,80,85,90,92,98.' },\n    { role: 'user', content: 'Title: ' + ($json.body.title || '') + '\\nDescription: ' + ($json.body.description || '') }\n  ]\n}) }}",
+        "options": {}
+      },
+      "id": "gemini-call",
+      "name": "Google Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the first 2-digit CPV code from the model's reply.\nconst content = $json.choices?.[0]?.message?.content ?? '';\nconst m = String(content).match(/\\b(\\d{2})\\b/);\nreturn [{ json: { cpv: m ? m[1] : '45' } }];"
+      },
+      "id": "parse-cpv",
+      "name": "Extract CPV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ cpv: $json.cpv }) }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1080, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Google Gemini", "type": "main", "index": 0 }]] },
+    "Google Gemini": { "main": [[{ "node": "Extract CPV", "type": "main", "index": 0 }]] },
+    "Extract CPV": { "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "meta": {
+    "note": "spendlabel `flow` paradigm. Webhook -> Gemini (OpenAI-compatible endpoint) -> parse 2-digit CPV -> respond {cpv}. Auth uses $env.GEMINI_API_KEY directly (run n8n with that env var and N8N_BLOCK_ENV_ACCESS_IN_NODE=false), so no credential setup is needed. The consumer (consumers/flow/classifier.py) POSTs {title, description} and reads back {cpv}."
+  }
+}

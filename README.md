@@ -1,6 +1,6 @@
 # spendlabel
 
-**Benchmark: CPV category classification across 7 AI paradigms on real UK public procurement data, streamed via PyFlink + Confluent Cloud Kafka.**
+**Benchmark: CPV category classification across multiple AI paradigms on real UK public procurement data, consumed from Confluent Kafka (`cpv-raw`) by per-paradigm Python consumers.**
 
 ## What It Does
 
@@ -9,7 +9,7 @@ SpendLabel takes real UK government contract notices (from Contracts Finder) and
 ## Architecture
 
 ```
-CSV files ──► Producer ──► Kafka (cpv-raw) ──► 7 PyFlink consumer jobs ──► PostgreSQL ──► ui-chart dashboard
+CSV files ──► Producer ──► Kafka (cpv-raw) ──► per-paradigm Kafka consumers ──► PostgreSQL ──► ui-chart dashboard
                                                 │
                                                 ├── hardcoded     (keyword/regex rules)
                                                 ├── spark_ml      (TF-IDF + classifier)
@@ -20,14 +20,14 @@ CSV files ──► Producer ──► Kafka (cpv-raw) ──► 7 PyFlink consu
                                                 └── mcp           (Claude + tools)
 ```
 
-Each consumer is a separate PyFlink job subscribed to `cpv-raw`, writing results to its own sink topic. Ground truth (CPV 2-digit prefix) is already in the dataset — no external labelling needed.
+Each consumer is a separate `confluent-kafka` consumer subscribed to `cpv-raw`, writing predictions to PostgreSQL via the shared consumer loop. Ground truth (CPV 2-digit prefix) is already in the dataset — no external labelling needed.
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Streaming | Apache Flink (PyFlink) |
-| Message broker | Confluent Cloud Kafka |
+| Consumers | Confluent Kafka (`confluent-kafka` Python client) |
+| Message broker | Confluent Kafka (KRaft, dockerised) |
 | ML | PySpark, ONNX Runtime |
 | Solver | Google OR-Tools |
 | LLM | LangChain + OpenAI |
@@ -45,11 +45,13 @@ spendlabel/
 ├── services/
 │   ├── producer/app/               ← CSV → Kafka publisher (local script, not dockerised)
 │   │   └── publish.py
-│   ├── flink-processor/app/        ← Service 1: PyFlink jobs → PostgreSQL (dockerised)
+│   ├── kafka-consumers/app/       ← Service 1: Kafka consumers → PostgreSQL (dockerised)
 │   │   ├── main.py                 ← entrypoint: python main.py --paradigm <p>
-│   │   ├── config.py               ← Kafka + Flink settings (env-var overrides)
+│   │   ├── config.py               ← Kafka settings (env-var overrides)
 │   │   ├── consumers/
-│   │   │   ├── base_job.py         ← Shared PyFlink job skeleton
+│   │   │   ├── consumer_loop.py    ← shared consume→classify→Postgres loop
+│   │   │   ├── paradigms.py        ← single-source-of-truth paradigm registry
+│   │   │   ├── cpv_labels.py       ← canonical CPV division label set
 │   │   │   ├── hardcoded/          ← Rule-based classifier
 │   │   │   ├── spark_ml/           ← Spark ML classifier
 │   │   │   ├── deeplearning_onnx/      ← ONNX runtime classifier

@@ -1,0 +1,14 @@
+# Keep the consumers image slim (audit fix A1): the offline training caches are
+# regenerable and must NOT ship. Inference artifacts (*.onnx, tokenizer*.json,
+# models/model2vec/, labels.json) are deliberately NOT excluded — they are loaded
+# at runtime by the embedders/heads.
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+consumers/models/*.npy
+consumers/models/_cache_*.npy
+
+# Local dev cruft that has no place in the build context.
+.pytest_cache/
+.ruff_cache/
+*.egg-info/

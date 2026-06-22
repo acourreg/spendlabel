@@ -61,19 +61,28 @@ def index(request: Request) -> HTMLResponse:
 @app.get("/api/metrics")
 def api_metrics() -> JSONResponse:
     """Per-paradigm aggregate. Returns [] if the DB is empty/unavailable."""
+    # total exec = REAL wall-clock = span of processed_at (max-min). This is correct
+    # for concurrent paradigms (the LLM ones run many calls in parallel, so the naive
+    # avg_latency×records serial sum massively overstates it — e.g. 432min vs 47min real).
     sql = (
-        "SELECT paradigm, accuracy, avg_latency, total_records, run_at "
-        "FROM metrics ORDER BY accuracy DESC"
+        "SELECT m.paradigm, m.accuracy, m.avg_latency, m.total_records, m.run_at, "
+        "EXTRACT(EPOCH FROM (MAX(c.processed_at) - MIN(c.processed_at))) AS exec_seconds "
+        "FROM metrics m LEFT JOIN classifications c ON c.paradigm = m.paradigm "
+        "GROUP BY m.paradigm, m.accuracy, m.avg_latency, m.total_records, m.run_at "
+        "ORDER BY m.accuracy DESC"
     )
     rows = _query(sql)
     out = []
-    for paradigm, accuracy, avg_latency, total_records, run_at in rows:
+    for paradigm, accuracy, avg_latency, total_records, run_at, exec_seconds in rows:
         avg_latency_ms = float(avg_latency) if avg_latency is not None else None
         records = int(total_records) if total_records is not None else 0
-        # Wall-clock estimate: mean per-message latency × number of messages.
-        total_exec_seconds = (
-            avg_latency_ms * records / 1000.0 if avg_latency_ms is not None else None
-        )
+        span = float(exec_seconds) if exec_seconds is not None else 0.0
+        if span > 0:
+            total_exec_seconds = span                                   # real wall-clock
+        elif avg_latency_ms is not None:
+            total_exec_seconds = avg_latency_ms * records / 1000.0       # fallback (no rows)
+        else:
+            total_exec_seconds = None
         out.append(
             {
                 "paradigm": paradigm,
